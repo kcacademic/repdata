@@ -1,0 +1,204 @@
+## Impact of Weather Events on Public Health & Economy
+
+### Synopsis
+This analysis is intended to figure out which weather events over a period of time has caused maximum amount of implications in terms of public health and economy in the U.S. For this purpose data was obtained from the U.S. National Oceanic and Atmospheric Administration's (NOAA) storm database. This database tracks characteristics of major storms and weather events in the United States, including when and where they occur, as well as estimates of any fatalities, injuries, and property damage.
+
+### Data Processing
+#### Loading and Pre-processing the Raw Data
+- Step 1: Loading the required r packagegs
+
+The analysis makes use of "plyr", "dplyr" and "ggplot2" r packages which are loaded in the current session for use.
+```{r message=FALSE, warning=FALSE}
+library(plyr)
+library(dplyr)
+library(ggplot2)
+```
+
+- Step 2: Downloading, unzipping and loading the raw data
+
+The NOAA storm database has been made available at the Coursera reproducable research course web site from here this is being downloaded. The data is available in the form of a comma-separated-value file compressed via the bzip2 algorithm to reduce its size. The file is uncompressed and read in the session.
+```{r cache=TRUE, message=FALSE, warning=FALSE}
+download.file("https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2", 
+              destfile="repdata-data-StormData.csv.bz2", method="curl")
+unzip("repdata-data-StormData.csv.bz2")
+data <- read.csv("repdata-data-StormData.csv")
+```
+
+- Step 3: Handling date values
+
+The begin date for an event would be used to subset the most recent data and hence it is first converted from character representation to that of class Date.
+```{r}
+data$BGN_DATE <- as.Date(data$BGN_DATE, "%m/%d/%Y")
+```
+
+- Step 4: Retaining recent and more relevant data
+
+The data is then sliced to retain events which occured in or after the year 1996. This is based on the fact that NOAA has data for all event types only since 1996. Refer to this [link](http://www.ncdc.noaa.gov/stormevents/details.jsp?type=eventtype) for details.
+```{r}
+data_set <- subset(data, BGN_DATE >= "1996-01-01")
+```
+
+- Step 5: Retaining most relevant columns
+
+As not all columns are of interest for the analysis only the necessary ones are retained to contain the size of data frame to analyse.
+```{r}
+data_set <- data_set[,c("EVTYPE","BGN_DATE","FATALITIES","INJURIES","PROPDMG","PROPDMGEXP","CROPDMG","CROPDMGEXP","REFNUM")]
+```
+
+#### Data Processing for Impact to Population Health Assessment
+- Step 1: Subsetting data with reported impact to population health 
+
+For the analysis of damage to public health data is sliced to use observations where fatalities (FATALITIES) and injuries (INJURIES) are non zero.
+```{r}
+data_set_health <- subset(data_set, FATALITIES>0 | INJURIES>0)
+data_set_health$EVTYPE <- factor(data_set_health$EVTYPE)
+```
+
+- Step 2: Verification for outliers
+
+The data is analysed by arranging in descending order of fatalities and injuries to check for any outliers.
+```{r}
+head(arrange(data_set_health[,c(1,2,3,4,9)], desc(FATALITIES)))
+head(arrange(data_set_health[,c(1,2,3,4,9)], desc(INJURIES)))
+```
+
+There does not seem to be any outlier in the data.
+
+- Step 3: Subsetting data with major hazard to population health
+
+As the analysis requires to analyse the weather events causing most damage to public health, the data is sliced to include observations with non-zero fatality and injuries more than 50.
+```{r}
+data_set_health <- subset(data_set_health, (FATALITIES>1 | INJURIES>50))
+data_set_health$EVTYPE <- factor(data_set_health$EVTYPE)
+```
+
+- Step 4: Claening the event types reported
+
+The weather event types as represented in EVTYPE column is not exactly as par NOAA Event Table. The factor levels are mapped accordingly to use official Event Names. This also takes care of duplication in event names due to spelling mistake etc.
+```{r}
+data_set_health$EVTYPE <- revalue(data_set_health$EVTYPE, c("AVALANCHE"="Avalanche","BLIZZARD"="Blizzard","COASTAL FLOOD"="Coastal Flood","Coastal Flooding"="Coastal Flood","Cold"="Cold/Wind Chill","COLD"="Cold/Wind Chill","COLD AND SNOW"="Winter Weather","COLD WEATHER"="Winter Weather","COLD/WIND CHILL"="Cold/Wind Chill","DENSE FOG"="Dense Fog","DUST STORM"="Dust Storm","EXCESSIVE HEAT"="Excessive Heat","EXTREME COLD"="Extreme Cold/Wind Chill","EXTREME COLD/WIND CHILL"="Extreme Cold/Wind Chill", "EXTREME WINDCHILL"="Extreme Cold/Wind Chill","FLASH FLOOD"="Flash Flood","FLOOD"="Flood","FOG"="Dense Fog","FREEZING RAIN"="FREEZING RAIN","GLAZE"="GLAZE","HAIL"="Hail","HEAT"="Heat","Heat Wave"="Heat","HEAVY RAIN"="Heavy Rain","HEAVY SNOW"="Heavy Snow","Heavy surf and wind"="High Surf","HEAVY SURF/HIGH SURF"="High Surf","HIGH SURF"="High Surf","HIGH WATER"="HIGH WATER","HIGH WIND"="High Wind","HURRICANE"="Hurricane (Typhoon)","HURRICANE/TYPHOON"="Hurricane (Typhoon)","Hypothermia/Exposure"="Hypothermia/Exposure","ICE STORM"="Ice Storm","ICY ROADS"="ICY ROADS","LANDSLIDE"="LANDSLIDE","LIGHTNING"="Lightning","MARINE STRONG WIND"="Marine Strong Wind","MARINE THUNDERSTORM WIND"="Marine Thunderstorm Wind","MARINE TSTM WIND"="Marine Thunderstorm Wind","Mudslide"="Mudslide","RAIN/SNOW"="RAIN/SNOW","RECORD HEAT"="Heat","RIP CURRENT"="Rip Current","RIP CURRENTS"="Rip Current","ROUGH SEAS"="ROUGH SEAS","ROUGH SURF"="High Surf","SNOW SQUALL"="SNOW SQUALL","STORM SURGE"="Storm Surge/Tide","STORM SURGE/TIDE"="Storm Surge/Tide","STRONG WIND"="Strong Wind","THUNDERSTORM WIND"="Thunderstorm Wind","TORNADO"="Tornado","TROPICAL STORM"="Tropical Storm","TSTM WIND"="Thunderstorm Wind","TSUNAMI"="Tsunami","URBAN/SML STREAM FLD"="Flood","WATERSPOUT"="Waterspout","WILD/FOREST FIRE"="Wildfire","WILDFIRE"="Wildfire","WIND"="High Wind","WINTER STORM"="Winter Storm","WINTER WEATHER"="Winter Weather","WINTER WEATHER MIX"="Winter Weather","WINTER WEATHER/MIX"="Winter Weather","WINTRY MIX"="Winter Weather"))
+```
+
+- Step 5: Summarising the processed data
+
+It is not reasonable to treat injuries and fatalities with equal weightage. Hence the data is summarised to produce the total number of fatalities and injuries separately for every weather event.
+```{r}
+data_sum1_1 <- plyr::ddply(data_set_health, .(EVTYPE), dplyr::summarise, TOTAL_FATALITIES=sum(FATALITIES))
+data_sum1_1 <- arrange(data_sum1_1, desc(TOTAL_FATALITIES))
+data_sum1_2 <- plyr::ddply(data_set_health, .(EVTYPE), dplyr::summarise, TOTAL_INJURIES=sum(INJURIES))
+data_sum1_2 <- arrange(data_sum1_2, desc(TOTAL_INJURIES))
+```
+
+#### Data Processing for Impact to Economy Assessment
+- Step 1: Subsetting data with reported impact to economy 
+
+For the analysis of damage to economy data is sliced to use observations where property (PROPDMG) and crop (CROPDMG) damage values are non zero.
+```{r}
+data_set_economy <- subset(data_set, PROPDMG>0 | CROPDMG>0)
+data_set_economy$EVTYPE <- factor(data_set_economy$EVTYPE)
+```
+
+- Step 2: Handling the exponents of reported damage value
+
+The damage value need to be taken care for exponentiation. The factor levels for PROPDMGEXP and CROPDMGEXP are as following.
+```{r}
+data_set_economy$PROPDMGEXP <- factor(data_set_economy$PROPDMGEXP)
+levels(data_set_economy$PROPDMGEXP)
+data_set_economy$CROPDMGEXP <- factor(data_set_economy$CROPDMGEXP)
+levels(data_set_economy$CROPDMGEXP)
+```
+
+The exponents that need to be taken care of are 'K', 'M' and 'B'. Although a documentation for this could not found it is deducted that these stands for Thousand, Million and Billion respectively. Hence their corresponding damage values need to be multiplied by 10^3, 10^6 and 10^9 respectively. Following is a function to do that.
+```{r}
+handle_exp <- function(a, b) {
+	if(b=='B'){
+	 as.numeric(a)*1000000000
+	} else if(b=='M'){
+	 as.numeric(a)*1000000
+	} else if(b=='K'){
+	 as.numeric(a)*1000
+	} else if(b==''){
+	 as.numeric(a)
+	}
+}
+```
+
+The above function is used to handle the exponentiation in the damage values of PROPDMG and CROPDMG. These are then summed to produce the total damage value (TOTALDMG) for an observation.
+```{r}
+data_set_economy$PROPDMGCAL <- apply(data_set_economy[,c('PROPDMG','PROPDMGEXP')], 1, function(y) handle_exp(y['PROPDMG'],y['PROPDMGEXP']))
+data_set_economy$CROPDMGCAL <- apply(data_set_economy[,c('CROPDMG','CROPDMGEXP')], 1, function(y) handle_exp(y['CROPDMG'],y['CROPDMGEXP']))
+data_set_economy$TOTALDMG <- data_set_economy$PROPDMGCAL + data_set_economy$CROPDMGCAL
+```
+
+- Step 3: Verification for outliers
+
+The data is now analysed for any possible outliers. As a quick test the top ten observations are evaluated on the data arranged with respect to PROPDMGCAL first.
+```{r}
+head(arrange(data_set_economy[,c(1,2,5,6,10)], desc(PROPDMGCAL)), 10)
+```
+
+The first observation reports a property damage of 115 Billions! This does not seem correct and should be cross checked. A quick verification from the remarks provided for this observation reveals that this can not be true. Hence this observation is removed.
+```{r}
+data_set_economy <- data_set_economy[!(data_set_economy$REFNUM==605943),]
+```
+
+The data is now arranged with respect to CROPDMGCAL and the top ten observations are evaluated again.
+```{r}
+head(arrange(data_set_economy[,c(1,2,7,8,11)], desc(CROPDMGCAL)), 10)
+```
+
+The observations seem to be in order this time.
+
+- Step 4: Subsetting data with major hazard to economy
+
+As the analysis requires to analyse weather events that has caused most of damage to economy, the observations which were reported with both property and crop damages in thousands only can possibly be dropped.
+```{r}
+data_set_economy <- subset(data_set_economy, (PROPDMGEXP=='M' | CROPDMGEXP=='M' | PROPDMGEXP=='B' | CROPDMGEXP=='B'))
+data_set_economy$EVTYPE <- factor(data_set_economy$EVTYPE)
+```
+
+- Step 5: Claening the event types reported
+
+The weather event types as represented in EVTYPE column is not exactly as par NOAA Event Table. The factor levels are mapped accordingly to use official Event Names. This also takes care of duplication in event names due to spelling mistake etc.
+```{r}
+data_set_economy$EVTYPE <- revalue(data_set_economy$EVTYPE, c(" TSTM WIND"="Thunderstorm Wind","AGRICULTURAL FREEZE"="AGRICULTURAL FREEZE","ASTRONOMICAL HIGH TIDE"="ASTRONOMICAL HIGH TIDE","AVALANCHE"="Avalanche","BLIZZARD"="Blizzard","COASTAL  FLOODING/EROSION"="Coastal Flood","Coastal Flood"="Coastal Flood","COASTAL FLOOD"="Coastal Flood","Coastal Flooding"="Coastal Flood","COASTAL FLOODING"="Coastal Flood","COASTAL FLOODING/EROSION"="Coastal Flood", "DAM BREAK"="DAM BREAK","Damaging Freeze"="Frost/Freeze","DAMAGING FREEZE"="Frost/Freeze","DENSE FOG"="Dense Fog","DROUGHT"="Drought","DUST STORM"="Dust Storm","Early Frost"="Frost/Freeze","Erosion/Cstl Flood"="Coastal Flood","EXCESSIVE HEAT"="Excessive Heat","Extreme Cold"="Extreme Cold/Wind Chill","EXTREME COLD"="Extreme Cold/Wind Chill","EXTREME COLD/WIND CHILL"="Extreme Cold/Wind Chill","EXTREME WINDCHILL"="Extreme Cold/Wind Chill","FLASH FLOOD"="Flash Flood","FLOOD"="Flood","FOG"="Dense Fog","Freeze"="Frost/Freeze","FREEZE"="Frost/Freeze","FREEZING FOG"="Freezing Fog","Frost/Freeze"="Frost/Freeze","FROST/FREEZE"="Frost/Freeze","HAIL"="Hail","HARD FREEZE"="Frost/Freeze","HEAT"="Heat","HEAVY RAIN"="Heavy Rain","Heavy Rain/High Surf"="Heavy Rain","HEAVY SNOW"="Heavy Snow","HEAVY SURF/HIGH SURF"="High Surf","HIGH SURF"="High Surf","HIGH WIND"="High Wind","HURRICANE"="Hurricane (Typhoon)","HURRICANE/TYPHOON"="Hurricane (Typhoon)","ICE STORM"="Ice Storm","LAKE-EFFECT SNOW"="Lake-Effect Snow","LAKESHORE FLOOD"="Lakeshore Flood","LANDSLIDE"="LANDSLIDE","LIGHTNING"="Lightning","MARINE HIGH WIND"="Marine High Wind","MARINE TSTM WIND"="Marine Thunderstorm Wind","MUDSLIDE"="MUDSLIDE","RIVER FLOOD"="Flood","River Flooding"="Flood","SMALL HAIL"="Hail","SNOW"="Heavy Snow","STORM SURGE"="Storm Surge/Tide","STORM SURGE/TIDE"="Storm Surge/Tide","STRONG WIND"="Strong Wind","STRONG WINDS"="Strong Wind","THUNDERSTORM WIND"="Thunderstorm Wind","TORNADO"="Tornado","TROPICAL DEPRESSION"="Tropical Depression","TROPICAL STORM"="Tropical Storm","TSTM WIND"="Thunderstorm Wind","TSTM WIND/HAIL"="Thunderstorm Wind","TSUNAMI"="Tsunami","TYPHOON"="Hurricane (Typhoon)","Unseasonable Cold"="Cold/Wind Chill","UNSEASONABLY COLD"="Cold/Wind Chill","UNSEASONAL RAIN"="Heavy Rain","URBAN/SML STREAM FLD"="Flood","WILD/FOREST FIRE"="Wildfire","WILDFIRE"="Wildfire","WIND"="High Wind","WIND AND WAVE"="High Wind","WINTER STORM"="Winter Storm","WINTER WEATHER"="Winter Weather","WINTER WEATHER/MIX"="Winter Weather"))
+```
+
+- Step 6: Summarising the processed data
+
+Finally the data is summarised to present the total damage value for every event type and arranged in descending order of the total damage.
+```{r}
+data_sum2 <- plyr::ddply(data_set_economy, .(EVTYPE), dplyr::summarise, ECONOMY_DAMAGES=sum(TOTALDMG))
+data_sum2 <- arrange(data_sum2, desc(ECONOMY_DAMAGES))
+```
+
+### Results
+#### Across the United States, which types of events (as indicated in the EVTYPE variable) are most harmful with respect to population health?
+
+A look at the summarised data presenting total fatalities and injuries for every event type reveals the most devasttaing weather events.
+```{r}
+head(data_sum1_1)
+head(data_sum1_2)
+```
+
+The same data is plotted to present a visual representation of the most damaging weather events with respect to public healh.
+```{r fig.width = 10}
+qplot(EVTYPE, TOTAL_FATALITIES, data=head(data_sum1_1), xlab="Weather Events", ylab="Total Fatalities", main="Plot of Total Fatalities against Weather Events")
+qplot(EVTYPE, TOTAL_INJURIES, data=head(data_sum1_2), xlab="Weather Events", ylab="Total Injuries", main="Plot of Total Injuries against Weather Events")
+```
+
+<span style="color:red">As evident from the results above "Tornado", "Excessive Heat" and "Flood/Flash Flood" are most deadly for population health both in terms of fatlities and injuries that they cause.</span>
+
+#### Across the United States, which types of events have the greatest economic consequences?
+
+A look at the summarised data presenting total damage to economy for every weather event reveals the most devastating weather events.
+```{r}
+head(data_sum2)
+```
+
+The same data is plotted to present a visual representation of the most damaging weather events with respect to economy.
+```{r fig.width = 10}
+qplot(EVTYPE, ECONOMY_DAMAGES, data=head(data_sum2), xlab="Weather Events", ylab="Total Damage to Economy", main="Plot of Total Damage to Economy against Weather Events")
+```
+
+<span style="color:red">As evident from the results above "Hurricane (Typhoon)", "Storm Surge/Tide" and "Flood" are most deadly for the impact to economy that they cause.</span>
